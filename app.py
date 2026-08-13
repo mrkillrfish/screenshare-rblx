@@ -33,7 +33,34 @@ def clear_frames():
         "success": True
     }
 
+@app.post("/state")
+def set_state():
+    global stream_paused
 
+    data = request.get_json(silent=True) or {}
+
+    if "paused" not in data:
+        return {"error": "Missing paused"}, 400
+
+    with lock:
+        stream_paused = bool(data["paused"])
+
+        # Throw away stale future footage.
+        batch_queue.clear()
+
+    return {
+        "success": True,
+        "paused": stream_paused
+    }
+
+
+@app.get("/state")
+def get_state():
+    with lock:
+        return {
+            "paused": stream_paused
+        }
+        
 @app.post("/frames")
 def upload_frames():
     global version
