@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 WIDTH = 160
 HEIGHT = 90
-
+stream_paused = False
 MAX_BATCHES = 60
 
 lock = Lock()
@@ -45,7 +45,7 @@ def set_state():
     with lock:
         stream_paused = bool(data["paused"])
 
-        # Throw away stale future footage.
+        # Throw away footage that was queued before the pause.
         batch_queue.clear()
 
     return {
