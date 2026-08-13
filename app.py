@@ -7,9 +7,10 @@ app = Flask(__name__)
 WIDTH = 107
 HEIGHT = 60
 
-lock = Lock()
+# Render can hold a large backlog.
+MAX_BATCHES = 60
 
-MAX_BATCHES = 10
+lock = Lock()
 
 batch_queue = deque()
 version = 0
@@ -18,6 +19,20 @@ version = 0
 @app.get("/")
 def home():
     return "Roblox Screen Server is running!"
+
+
+@app.post("/clear")
+def clear_frames():
+    global version
+
+    with lock:
+        batch_queue.clear()
+        version = 0
+
+    return {
+        "success": True,
+        "message": "Queue cleared."
+    }
 
 
 @app.post("/frames")
@@ -49,28 +64,18 @@ def upload_frames():
 
         batch_queue.append(batch)
 
-        # Prevent unlimited memory growth.
+        # Keep the newest 60 batches.
         while len(batch_queue) > MAX_BATCHES:
             batch_queue.popleft()
+
+        queued = len(batch_queue)
 
     return {
         "success": True,
         "version": version,
-        "queued_batches": len(batch_queue)
+        "queued_batches": queued
     }
 
-@app.post("/clear")
-def clear_frames():
-    global batch_queue, version
-
-    with lock:
-        batch_queue.clear()
-        version += 1
-
-    return {
-        "success": True,
-        "message": "All queued frames cleared."
-    }
 
 @app.get("/frames")
 def get_frames():
@@ -81,7 +86,6 @@ def get_frames():
                 "mode": "none"
             })
 
-        # Return the oldest batch.
         batch = batch_queue.popleft()
 
         return jsonify(batch)
