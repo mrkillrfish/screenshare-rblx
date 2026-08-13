@@ -9,22 +9,27 @@ PIXEL_COUNT = WIDTH * HEIGHT
 
 lock = Lock()
 
+# The newest complete screen
 current_pixels = [0] * PIXEL_COUNT
 
+# The version of the current screen
 version = 0
 
-MAX_HISTORY = 120
-history = []
+# The version Roblox last received
+client_version = 0
+
+# The exact screen Roblox last received
+client_pixels = [0] * PIXEL_COUNT
 
 
 @app.get("/")
 def home():
-    return "Screen server is up"
+    return "Roblox Screen Server is running!"
 
 
 @app.post("/frame")
 def post_frame():
-    global version, current_pixels
+    global version
 
     data = request.get_json()
 
@@ -49,16 +54,6 @@ def post_frame():
 
         version += 1
 
-        patch = {
-            "version": version,
-            "changes": changes
-        }
-
-        history.append(patch)
-
-        if len(history) > MAX_HISTORY:
-            history.pop(0)
-
         return {
             "success": True,
             "version": version
@@ -67,36 +62,34 @@ def post_frame():
 
 @app.get("/frame")
 def get_frame():
-    since = request.args.get("since", default=0, type=int)
+    global client_version, client_pixels
 
     with lock:
-        if since >= version:
+        # Nothing new since Roblox's last request
+        if version == client_version:
             return jsonify({
                 "mode": "none",
                 "version": version
             })
 
-        patches = [
-            patch for patch in history
-            if patch["version"] > since
-        ]
+        changes = []
 
-        if not patches or patches[0]["version"] != since + 1:
-            return jsonify({
-                "mode": "full",
-                "version": version,
-                "width": WIDTH,
-                "height": HEIGHT,
-                "pixels": current_pixels
-            })
+        # Compare Roblox's last screen against newest screen
+        for index in range(PIXEL_COUNT):
+            current = current_pixels[index]
 
-        all_changes = []
+            if client_pixels[index] != current:
+                changes.append([
+                    index,
+                    current
+                ])
 
-        for patch in patches:
-            all_changes.extend(patch["changes"])
+        # Remember what Roblox has now received
+        client_pixels = current_pixels.copy()
+        client_version = version
 
         return jsonify({
             "mode": "changes",
             "version": version,
-            "changes": all_changes
+            "changes": changes
         })
