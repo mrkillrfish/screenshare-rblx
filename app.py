@@ -19,7 +19,7 @@ history = []
 
 @app.get("/")
 def home():
-    return "Roblox Screen Server is running!"
+    return "Screen server is up"
 
 
 @app.post("/frame")
