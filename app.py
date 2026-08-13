@@ -4,8 +4,8 @@ from collections import deque
 
 app = Flask(__name__)
 
-WIDTH = 107
-HEIGHT = 60
+WIDTH = 160
+HEIGHT = 90
 PIXEL_COUNT = WIDTH * HEIGHT
 
 MAX_BATCHES = 60
