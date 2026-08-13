@@ -5,21 +5,17 @@ app = Flask(__name__)
 
 WIDTH = 107
 HEIGHT = 60
-PIXEL_COUNT = WIDTH * HEIGHT
 
 lock = Lock()
 
-# The newest complete screen
-current_pixels = [0] * PIXEL_COUNT
+latest_batch = {
+    "version": 0,
+    "width": WIDTH,
+    "height": HEIGHT,
+    "frames": []
+}
 
-# The version of the current screen
 version = 0
-
-# The version Roblox last received
-client_version = 0
-
-# The exact screen Roblox last received
-client_pixels = [0] * PIXEL_COUNT
 
 
 @app.get("/")
@@ -27,9 +23,9 @@ def home():
     return "Roblox Screen Server is running!"
 
 
-@app.post("/frame")
-def post_frame():
-    global version
+@app.post("/frames")
+def upload_frames():
+    global latest_batch, version
 
     data = request.get_json()
 
@@ -39,57 +35,29 @@ def post_frame():
     if data.get("width") != WIDTH or data.get("height") != HEIGHT:
         return {"error": "Wrong resolution"}, 400
 
-    changes = data.get("changes")
+    frames = data.get("frames")
 
-    if not isinstance(changes, list):
-        return {"error": "Missing changes"}, 400
+    if not isinstance(frames, list) or len(frames) == 0:
+        return {"error": "No frames supplied"}, 400
 
     with lock:
-        for change in changes:
-            index = int(change[0])
-            color = int(change[1])
-
-            if 0 <= index < PIXEL_COUNT:
-                current_pixels[index] = color
-
         version += 1
 
-        return {
-            "success": True,
-            "version": version
+        latest_batch = {
+            "version": version,
+            "width": WIDTH,
+            "height": HEIGHT,
+            "frames": frames
         }
 
+    return {
+        "success": True,
+        "version": version,
+        "frame_count": len(frames)
+    }
 
-@app.get("/frame")
-def get_frame():
-    global client_version, client_pixels
 
+@app.get("/frames")
+def get_frames():
     with lock:
-        # Nothing new since Roblox's last request
-        if version == client_version:
-            return jsonify({
-                "mode": "none",
-                "version": version
-            })
-
-        changes = []
-
-        # Compare Roblox's last screen against newest screen
-        for index in range(PIXEL_COUNT):
-            current = current_pixels[index]
-
-            if client_pixels[index] != current:
-                changes.append([
-                    index,
-                    current
-                ])
-
-        # Remember what Roblox has now received
-        client_pixels = current_pixels.copy()
-        client_version = version
-
-        return jsonify({
-            "mode": "changes",
-            "version": version,
-            "changes": changes
-        })
+        return jsonify(latest_batch)
