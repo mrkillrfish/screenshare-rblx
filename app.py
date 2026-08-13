@@ -59,6 +59,18 @@ def upload_frames():
         "queued_batches": len(batch_queue)
     }
 
+@app.post("/clear")
+def clear_frames():
+    global batch_queue, version
+
+    with lock:
+        batch_queue.clear()
+        version += 1
+
+    return {
+        "success": True,
+        "message": "All queued frames cleared."
+    }
 
 @app.get("/frames")
 def get_frames():
