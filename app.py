@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from threading import Lock
+from collections import deque
 
 app = Flask(__name__)
 
@@ -8,13 +9,9 @@ HEIGHT = 60
 
 lock = Lock()
 
-latest_batch = {
-    "version": 0,
-    "width": WIDTH,
-    "height": HEIGHT,
-    "frames": []
-}
+MAX_BATCHES = 10
 
+batch_queue = deque()
 version = 0
 
 
@@ -25,7 +22,7 @@ def home():
 
 @app.post("/frames")
 def upload_frames():
-    global latest_batch, version
+    global version
 
     data = request.get_json()
 
@@ -43,21 +40,36 @@ def upload_frames():
     with lock:
         version += 1
 
-        latest_batch = {
+        batch = {
             "version": version,
             "width": WIDTH,
             "height": HEIGHT,
             "frames": frames
         }
 
+        batch_queue.append(batch)
+
+        # Prevent unlimited memory growth.
+        while len(batch_queue) > MAX_BATCHES:
+            batch_queue.popleft()
+
     return {
         "success": True,
         "version": version,
-        "frame_count": len(frames)
+        "queued_batches": len(batch_queue)
     }
 
 
 @app.get("/frames")
 def get_frames():
     with lock:
-        return jsonify(latest_batch)
+
+        if not batch_queue:
+            return jsonify({
+                "mode": "none"
+            })
+
+        # Return the oldest batch.
+        batch = batch_queue.popleft()
+
+        return jsonify(batch)
