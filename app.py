@@ -6,12 +6,11 @@ app = Flask(__name__)
 
 WIDTH = 107
 HEIGHT = 60
+PIXEL_COUNT = WIDTH * HEIGHT
 
-# Render can hold a large backlog.
 MAX_BATCHES = 60
 
 lock = Lock()
-
 batch_queue = deque()
 version = 0
 
@@ -30,8 +29,7 @@ def clear_frames():
         version = 0
 
     return {
-        "success": True,
-        "message": "Queue cleared."
+        "success": True
     }
 
 
@@ -44,13 +42,19 @@ def upload_frames():
     if not data:
         return {"error": "No JSON supplied"}, 400
 
-    if data.get("width") != WIDTH or data.get("height") != HEIGHT:
-        return {"error": "Wrong resolution"}, 400
+    if data.get("width") != WIDTH:
+        return {"error": "Wrong width"}, 400
+
+    if data.get("height") != HEIGHT:
+        return {"error": "Wrong height"}, 400
 
     frames = data.get("frames")
 
-    if not isinstance(frames, list) or len(frames) == 0:
-        return {"error": "No frames supplied"}, 400
+    if not isinstance(frames, list):
+        return {"error": "Invalid frames"}, 400
+
+    if len(frames) == 0:
+        return {"error": "Empty batch"}, 400
 
     with lock:
         version += 1
@@ -64,7 +68,6 @@ def upload_frames():
 
         batch_queue.append(batch)
 
-        # Keep the newest 60 batches.
         while len(batch_queue) > MAX_BATCHES:
             batch_queue.popleft()
 
@@ -73,7 +76,8 @@ def upload_frames():
     return {
         "success": True,
         "version": version,
-        "queued_batches": queued
+        "queued_batches": queued,
+        "frame_count": len(frames)
     }
 
 
