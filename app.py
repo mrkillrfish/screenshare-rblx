@@ -12,19 +12,19 @@ app = Flask(__name__)
 # THIS is now the only place where you change these values.
 #
 
-WIDTH = 192
-HEIGHT = 108
+WIDTH = 214
+HEIGHT = 120
 
 CAPTURE_FPS = 35
 PLAYBACK_FPS = 25
 
 BATCH_SECONDS = 1
 
-MIN_BUFFERED_BATCHES = 3
-MAX_BUFFERED_BATCHES = 6
+MIN_BUFFERED_BATCHES = 5
+MAX_BUFFERED_BATCHES = 7
 
 # Increase this if you want Render to retain more future footage.
-MAX_BATCHES = 60
+MAX_BATCHES = 50
 
 CONFIG_VERSION = 1
 
