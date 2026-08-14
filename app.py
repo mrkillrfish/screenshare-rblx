@@ -24,7 +24,7 @@ MIN_BUFFERED_BATCHES = 5
 MAX_BUFFERED_BATCHES = 8
 
 # Increase this if you want Render to retain more future footage.
-MAX_BATCHES = 70
+MAX_BATCHES = 10
 
 CONFIG_VERSION = 1
 
