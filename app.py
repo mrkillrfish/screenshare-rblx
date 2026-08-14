@@ -1,13 +1,14 @@
 from flask import Flask, jsonify, request
 from collections import deque
 from threading import Lock
+import time
 
 
 app = Flask(__name__)
 
 
 # ============================================================
-# STREAM CONFIG
+# CONFIG
 # ============================================================
 
 WIDTH = 426
@@ -16,16 +17,16 @@ HEIGHT = 240
 CAPTURE_FPS = 35
 PLAYBACK_FPS = 25
 
-BATCH_SECONDS = 1
+BATCH_SECONDS = 0.25
 
-MIN_BUFFERED_BATCHES = 5
-MAX_BUFFERED_BATCHES = 7
+MIN_BUFFERED_BATCHES = 2
+MAX_BUFFERED_BATCHES = 8
 
 TILE_SIZE = 32
 TILE_CHANGE_THRESHOLD = 0.10
 KEYFRAME_SECONDS = 2.0
 
-MAX_BATCHES = 5
+MAX_BATCHES = 8
 
 CONFIG_VERSION = 1
 
@@ -144,8 +145,14 @@ def set_resolution():
     ) or {}
 
     try:
-        new_width = int(data["width"])
-        new_height = int(data["height"])
+        new_width = int(
+            data["width"]
+        )
+
+        new_height = int(
+            data["height"]
+        )
+
     except (
         KeyError,
         TypeError,
@@ -188,7 +195,7 @@ def set_resolution():
 
 
 # ============================================================
-# UPLOAD
+# UPLOAD BATCH
 # ============================================================
 
 @app.post("/frames")
@@ -214,7 +221,9 @@ def upload_frames():
             "error": "Wrong height"
         }, 400
 
-    compressed_data = data.get("data")
+    compressed_data = data.get(
+        "data"
+    )
 
     if not isinstance(
         compressed_data,
@@ -224,7 +233,15 @@ def upload_frames():
             "error": "Missing batch data"
         }, 400
 
+    created_at = data.get(
+        "created_at"
+    )
+
+    if created_at is None:
+        created_at = time.time()
+
     with lock:
+
         if stream_paused:
             return {
                 "success": False,
@@ -237,13 +254,17 @@ def upload_frames():
             "version": version,
             "width": WIDTH,
             "height": HEIGHT,
-            "data": compressed_data
+            "data": compressed_data,
+            "created_at": float(created_at),
+            "server_received_at": time.time()
         })
 
         while len(batch_queue) > MAX_BATCHES:
             batch_queue.popleft()
 
-        queued = len(batch_queue)
+        queued = len(
+            batch_queue
+        )
 
     return {
         "success": True,
@@ -253,12 +274,13 @@ def upload_frames():
 
 
 # ============================================================
-# DOWNLOAD
+# DOWNLOAD BATCH
 # ============================================================
 
 @app.get("/frames")
 def get_frames():
     with lock:
+
         if stream_paused:
             return jsonify({
                 "mode": "paused"
@@ -269,6 +291,9 @@ def get_frames():
                 "mode": "none"
             })
 
+        # Sequential playback buffer.
         batch = batch_queue.popleft()
+
+        batch["server_sent_at"] = time.time()
 
         return jsonify(batch)
