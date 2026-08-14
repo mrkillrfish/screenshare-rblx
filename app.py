@@ -1,11 +1,14 @@
-from flask import Flask, request, jsonify
-from threading import Lock
+from flask import Flask, jsonify, request
+
 from collections import deque
+from threading import Lock
+
 
 app = Flask(__name__)
 
+
 # ============================================================
-# SHARED CONFIG
+# CONFIG
 # ============================================================
 
 WIDTH = 426
@@ -14,21 +17,16 @@ HEIGHT = 240
 CAPTURE_FPS = 35
 PLAYBACK_FPS = 25
 
-BATCH_SECONDS = 0.1
+BATCH_SECONDS = 0.25
 
 MIN_BUFFERED_BATCHES = 2
 MAX_BUFFERED_BATCHES = 3
 
-MAX_BATCHES = 12
-
 TILE_SIZE = 16
-
-# Fraction of changed pixels in a tile required before
-# the tile is transmitted.
 TILE_CHANGE_THRESHOLD = 0.05
-
-# Force a full keyframe periodically.
 KEYFRAME_SECONDS = 2.0
+
+MAX_BATCHES = 8
 
 CONFIG_VERSION = 1
 
@@ -39,10 +37,11 @@ CONFIG_VERSION = 1
 
 stream_paused = False
 
-lock = Lock()
 batch_queue = deque()
 
 version = 0
+
+lock = Lock()
 
 
 # ============================================================
@@ -60,24 +59,20 @@ def home():
 
 @app.get("/config")
 def get_config():
-    return {
-        "config_version": CONFIG_VERSION,
-
-        "width": WIDTH,
-        "height": HEIGHT,
-
-        "capture_fps": CAPTURE_FPS,
-        "playback_fps": PLAYBACK_FPS,
-
-        "batch_seconds": BATCH_SECONDS,
-
-        "min_buffered_batches": MIN_BUFFERED_BATCHES,
-        "max_buffered_batches": MAX_BUFFERED_BATCHES,
-
-        "tile_size": TILE_SIZE,
-        "tile_change_threshold": TILE_CHANGE_THRESHOLD,
-        "keyframe_seconds": KEYFRAME_SECONDS
-    }
+    with lock:
+        return {
+            "config_version": CONFIG_VERSION,
+            "width": WIDTH,
+            "height": HEIGHT,
+            "capture_fps": CAPTURE_FPS,
+            "playback_fps": PLAYBACK_FPS,
+            "batch_seconds": BATCH_SECONDS,
+            "min_buffered_batches": MIN_BUFFERED_BATCHES,
+            "max_buffered_batches": MAX_BUFFERED_BATCHES,
+            "tile_size": TILE_SIZE,
+            "tile_change_threshold": TILE_CHANGE_THRESHOLD,
+            "keyframe_seconds": KEYFRAME_SECONDS
+        }
 
 
 # ============================================================
@@ -119,7 +114,6 @@ def set_state():
             data["paused"]
         )
 
-        # Never keep stale footage around a pause.
         batch_queue.clear()
 
     return {
@@ -137,7 +131,7 @@ def get_state():
 
 
 # ============================================================
-# CHANGE RESOLUTION
+# RESOLUTION
 # ============================================================
 
 @app.post("/resolution")
@@ -151,8 +145,14 @@ def change_resolution():
     ) or {}
 
     try:
-        new_width = int(data["width"])
-        new_height = int(data["height"])
+        new_width = int(
+            data["width"]
+        )
+
+        new_height = int(
+            data["height"]
+        )
+
     except (
         KeyError,
         TypeError,
@@ -169,10 +169,13 @@ def change_resolution():
         (320, 180),
         (256, 144),
         (192, 108),
-        (160, 90),
+        (160, 90)
     }
 
-    if (new_width, new_height) not in allowed:
+    if (
+        new_width,
+        new_height
+    ) not in allowed:
         return {
             "error": "Resolution not allowed"
         }, 400
@@ -194,7 +197,7 @@ def change_resolution():
 
 
 # ============================================================
-# UPLOAD
+# UPLOAD BATCH
 # ============================================================
 
 @app.post("/frames")
@@ -220,16 +223,16 @@ def upload_frames():
             "error": "Wrong height"
         }, 400
 
-    frames = data.get("frames")
+    compressed_data = data.get(
+        "data"
+    )
 
-    if not isinstance(frames, list):
+    if not isinstance(
+        compressed_data,
+        str
+    ):
         return {
-            "error": "Invalid frames"
-        }, 400
-
-    if not frames:
-        return {
-            "error": "Empty batch"
+            "error": "Missing batch data"
         }, 400
 
     with lock:
@@ -242,14 +245,12 @@ def upload_frames():
 
         version += 1
 
-        batch = {
+        batch_queue.append({
             "version": version,
             "width": WIDTH,
             "height": HEIGHT,
-            "frames": frames
-        }
-
-        batch_queue.append(batch)
+            "data": compressed_data
+        })
 
         while len(batch_queue) > MAX_BATCHES:
             batch_queue.popleft()
@@ -259,13 +260,12 @@ def upload_frames():
     return {
         "success": True,
         "version": version,
-        "queued_batches": queued,
-        "frame_count": len(frames)
+        "queued_batches": queued
     }
 
 
 # ============================================================
-# GET FRAMES
+# GET BATCH
 # ============================================================
 
 @app.get("/frames")
@@ -282,9 +282,10 @@ def get_frames():
                 "mode": "none"
             })
 
-        # LIVE MODE:
-        # Always return newest batch and discard stale footage.
+        # LIVE STREAM MODE:
+        # Never make Roblox play stale footage.
         batch = batch_queue[-1]
+
         batch_queue.clear()
 
         return jsonify(batch)
