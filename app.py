@@ -1,5 +1,4 @@
 from flask import Flask, jsonify, request
-
 from collections import deque
 from threading import Lock
 
@@ -8,7 +7,7 @@ app = Flask(__name__)
 
 
 # ============================================================
-# CONFIG
+# STREAM CONFIG
 # ============================================================
 
 WIDTH = 426
@@ -22,11 +21,11 @@ BATCH_SECONDS = 0.25
 MIN_BUFFERED_BATCHES = 2
 MAX_BUFFERED_BATCHES = 3
 
-TILE_SIZE = 16
-TILE_CHANGE_THRESHOLD = 0.05
+TILE_SIZE = 32
+TILE_CHANGE_THRESHOLD = 0.10
 KEYFRAME_SECONDS = 2.0
 
-MAX_BATCHES = 8
+MAX_BATCHES = 5
 
 CONFIG_VERSION = 1
 
@@ -35,13 +34,13 @@ CONFIG_VERSION = 1
 # STATE
 # ============================================================
 
-stream_paused = False
+lock = Lock()
 
 batch_queue = deque()
 
-version = 0
+stream_paused = False
 
-lock = Lock()
+version = 0
 
 
 # ============================================================
@@ -135,7 +134,7 @@ def get_state():
 # ============================================================
 
 @app.post("/resolution")
-def change_resolution():
+def set_resolution():
     global WIDTH
     global HEIGHT
     global CONFIG_VERSION
@@ -145,14 +144,8 @@ def change_resolution():
     ) or {}
 
     try:
-        new_width = int(
-            data["width"]
-        )
-
-        new_height = int(
-            data["height"]
-        )
-
+        new_width = int(data["width"])
+        new_height = int(data["height"])
     except (
         KeyError,
         TypeError,
@@ -183,9 +176,7 @@ def change_resolution():
     with lock:
         WIDTH = new_width
         HEIGHT = new_height
-
         batch_queue.clear()
-
         CONFIG_VERSION += 1
 
     return {
@@ -197,7 +188,7 @@ def change_resolution():
 
 
 # ============================================================
-# UPLOAD BATCH
+# UPLOAD
 # ============================================================
 
 @app.post("/frames")
@@ -223,9 +214,7 @@ def upload_frames():
             "error": "Wrong height"
         }, 400
 
-    compressed_data = data.get(
-        "data"
-    )
+    compressed_data = data.get("data")
 
     if not isinstance(
         compressed_data,
@@ -236,7 +225,6 @@ def upload_frames():
         }, 400
 
     with lock:
-
         if stream_paused:
             return {
                 "success": False,
@@ -265,13 +253,12 @@ def upload_frames():
 
 
 # ============================================================
-# GET BATCH
+# DOWNLOAD
 # ============================================================
 
 @app.get("/frames")
 def get_frames():
     with lock:
-
         if stream_paused:
             return jsonify({
                 "mode": "paused"
@@ -282,10 +269,9 @@ def get_frames():
                 "mode": "none"
             })
 
-        # LIVE STREAM MODE:
-        # Never make Roblox play stale footage.
+        # Live-stream behavior:
+        # throw away stale footage and return newest.
         batch = batch_queue[-1]
-
         batch_queue.clear()
 
         return jsonify(batch)
