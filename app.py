@@ -216,7 +216,6 @@ def upload_frames():
 
 @app.get("/frames")
 def get_frames():
-
     with lock:
 
         if stream_paused:
@@ -229,8 +228,10 @@ def get_frames():
                 "mode": "none"
             })
 
-        batch = batch_queue.popleft()
+        # Take the newest available batch.
+        batch = batch_queue[-1]
 
-        return jsonify(
-            batch
-        )
+        # Throw away everything older than it.
+        batch_queue.clear()
+
+        return jsonify(batch)
