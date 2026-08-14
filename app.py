@@ -4,10 +4,36 @@ from collections import deque
 
 app = Flask(__name__)
 
+
+# ============================================================
+# SHARED CONFIGURATION
+# ============================================================
+#
+# THIS is now the only place where you change these values.
+#
+
 WIDTH = 192
 HEIGHT = 108
-stream_paused = False
+
+CAPTURE_FPS = 35
+PLAYBACK_FPS = 25
+
+BATCH_SECONDS = 1
+
+MIN_BUFFERED_BATCHES = 3
+MAX_BUFFERED_BATCHES = 6
+
+# Increase this if you want Render to retain more future footage.
 MAX_BATCHES = 60
+
+CONFIG_VERSION = 1
+
+
+# ============================================================
+# STREAM STATE
+# ============================================================
+
+stream_paused = False
 
 lock = Lock()
 
@@ -16,10 +42,40 @@ batch_queue = deque()
 version = 0
 
 
+# ============================================================
+# HOME
+# ============================================================
+
 @app.get("/")
 def home():
     return "Roblox Screen Server is running!"
 
+
+# ============================================================
+# CONFIG
+# ============================================================
+
+@app.get("/config")
+def get_config():
+    return {
+        "config_version": CONFIG_VERSION,
+
+        "width": WIDTH,
+        "height": HEIGHT,
+
+        "capture_fps": CAPTURE_FPS,
+        "playback_fps": PLAYBACK_FPS,
+
+        "batch_seconds": BATCH_SECONDS,
+
+        "min_buffered_batches": MIN_BUFFERED_BATCHES,
+        "max_buffered_batches": MAX_BUFFERED_BATCHES
+    }
+
+
+# ============================================================
+# CLEAR
+# ============================================================
 
 @app.post("/clear")
 def clear_frames():
@@ -33,19 +89,31 @@ def clear_frames():
         "success": True
     }
 
+
+# ============================================================
+# STREAM STATE
+# ============================================================
+
 @app.post("/state")
 def set_state():
     global stream_paused
 
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(
+        silent=True
+    ) or {}
 
     if "paused" not in data:
-        return {"error": "Missing paused"}, 400
+        return {
+            "error": "Missing paused"
+        }, 400
 
     with lock:
-        stream_paused = bool(data["paused"])
 
-        # Throw away footage that was queued before the pause.
+        stream_paused = bool(
+            data["paused"]
+        )
+
+        # Discard footage from before the state change.
         batch_queue.clear()
 
     return {
@@ -56,11 +124,17 @@ def set_state():
 
 @app.get("/state")
 def get_state():
+
     with lock:
         return {
             "paused": stream_paused
         }
-        
+
+
+# ============================================================
+# UPLOAD FRAMES
+# ============================================================
+
 @app.post("/frames")
 def upload_frames():
     global version
@@ -98,6 +172,13 @@ def upload_frames():
 
     with lock:
 
+        # Don't accept new video while paused.
+        if stream_paused:
+            return {
+                "success": False,
+                "paused": True
+            }
+
         version += 1
 
         batch = {
@@ -129,13 +210,21 @@ def upload_frames():
     }
 
 
+# ============================================================
+# DOWNLOAD FRAMES
+# ============================================================
+
 @app.get("/frames")
 def get_frames():
 
     with lock:
 
-        if not batch_queue:
+        if stream_paused:
+            return jsonify({
+                "mode": "paused"
+            })
 
+        if not batch_queue:
             return jsonify({
                 "mode": "none"
             })
