@@ -4,8 +4,8 @@ from collections import deque
 
 app = Flask(__name__)
 
-WIDTH = 480
-HEIGHT = 360
+WIDTH = 192
+HEIGHT = 108
 stream_paused = False
 MAX_BATCHES = 60
 
