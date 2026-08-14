@@ -135,6 +135,44 @@ def get_state():
 # UPLOAD FRAMES
 # ============================================================
 
+@app.post("/resolution")
+def set_resolution():
+    global WIDTH
+    global HEIGHT
+
+    data = request.get_json(silent=True) or {}
+
+    try:
+        new_width = int(data["width"])
+        new_height = int(data["height"])
+    except (KeyError, TypeError, ValueError):
+        return {"error": "Invalid resolution"}, 400
+
+    allowed = {
+        (854, 480),
+        (640, 360),
+        (426, 240),
+        (320, 180),
+        (256, 144),
+        (192, 108),
+        (160, 90),
+    }
+
+    if (new_width, new_height) not in allowed:
+        return {"error": "Resolution not allowed"}, 400
+
+    with lock:
+        WIDTH = new_width
+        HEIGHT = new_height
+
+        batch_queue.clear()
+
+    return {
+        "success": True,
+        "width": WIDTH,
+        "height": HEIGHT
+    }
+    
 @app.post("/frames")
 def upload_frames():
     global version
