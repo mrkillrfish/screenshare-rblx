@@ -12,8 +12,8 @@ app = Flask(__name__)
 # THIS is now the only place where you change these values.
 #
 
-WIDTH = 256
-HEIGHT = 144
+WIDTH = 224
+HEIGHT = 111
 
 CAPTURE_FPS = 30
 PLAYBACK_FPS = 25
