@@ -12,13 +12,13 @@ app = Flask(__name__)
 # THIS is now the only place where you change these values.
 #
 
-WIDTH = 160
-HEIGHT = 90
+WIDTH = 192
+HEIGHT = 108
 
 CAPTURE_FPS = 35
 PLAYBACK_FPS = 25
 
-BATCH_SECONDS = 2
+BATCH_SECONDS = 1
 
 MIN_BUFFERED_BATCHES = 5
 MAX_BUFFERED_BATCHES = 7
