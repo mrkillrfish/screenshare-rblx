@@ -269,9 +269,6 @@ def get_frames():
                 "mode": "none"
             })
 
-        # Live-stream behavior:
-        # throw away stale footage and return newest.
-        batch = batch_queue[-1]
-        batch_queue.clear()
+        batch = batch_queue.popleft()
 
         return jsonify(batch)
