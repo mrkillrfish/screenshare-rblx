@@ -21,7 +21,7 @@ PLAYBACK_FPS = 25
 BATCH_SECONDS = 0.25
 
 MIN_BUFFERED_BATCHES = 10
-MAX_BUFFERED_BATCHES = 12
+MAX_BUFFERED_BATCHES = 16
 
 # Increase this if you want Render to retain more future footage.
 MAX_BATCHES = 30
