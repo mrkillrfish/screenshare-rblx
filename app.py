@@ -18,13 +18,13 @@ HEIGHT = 111
 CAPTURE_FPS = 25
 PLAYBACK_FPS = 20
 
-BATCH_SECONDS = 2
+BATCH_SECONDS = 1
 
 MIN_BUFFERED_BATCHES = 5
 MAX_BUFFERED_BATCHES = 8
 
 # Increase this if you want Render to retain more future footage.
-MAX_BATCHES = 10
+MAX_BATCHES = 20
 
 CONFIG_VERSION = 1
 
